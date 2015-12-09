@@ -66,7 +66,11 @@
         (double) ((int) (x)) : (double) ((int) (x) + 1) )
 #define FLOOR(x) ( (double) ((int) (x)) )
 
+#ifdef WIN32
+static int pad4(int value)
+#else // WIN32
 static inline int pad4(int value)
+#endif // WIN32
 {
     int remainder = value & 3;
     if (!remainder) return value;

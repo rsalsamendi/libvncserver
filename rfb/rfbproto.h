@@ -62,9 +62,10 @@
 
 #include <stdint.h>
 
-#if defined(WIN32) && !defined(__MINGW32__)
-#define LIBVNCSERVER_WORDS_BIGENDIAN
-#define rfbBool int
+#if defined(_WIN32) && !defined(__MINGW32__)
+// JTF #define LIBVNCSERVER_WORDS_BIGENDIAN
+// JTF #define rfbBool int
+#define rfbBool int8_t
 #include <sys/timeb.h>
 #include <winsock2.h>
 #undef SOCKET

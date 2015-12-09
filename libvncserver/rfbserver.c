@@ -47,6 +47,7 @@
 #include <ws2tcpip.h>
 #include <io.h>
 #define write(sock,buf,len) send(sock,buf,len,0)
+#define LIBVNCSERVER_PACKAGE_STRING  "LibVNCServer 0.9.10"
 #else
 #ifdef LIBVNCSERVER_HAVE_UNISTD_H
 #include <unistd.h>
@@ -74,9 +75,9 @@
 /* stst() */
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 #ifndef WIN32
+#include <unistd.h>
 /* readdir() */
 #include <dirent.h>
 #endif

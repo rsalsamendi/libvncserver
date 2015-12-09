@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.6)
 cmake_policy(SET CMP0037 NEW)
 
-project(LibVNCServer)
+project(libvncserver)
 include(CheckFunctionExists)
 include(CheckIncludeFile)
 include(CheckTypeSize)
@@ -9,23 +9,34 @@ include(CheckCSourceCompiles)
 include(CheckCXXSourceCompiles)
 include(CheckCSourceRuns)
 
-set(PACKAGE_NAME           "LibVNCServer")
-set(FULL_PACKAGE_NAME      "LibVNCServer")
+set(PACKAGE_NAME           "libvncserver")
+set(FULL_PACKAGE_NAME      "libvncserver")
 set(VERSION_MAJOR          "0")
 set(VERSION_MINOR          "9")
 set(VERSION_PATCHLEVEL     "10")
 set(VERSION_SO             "0")
 set(PACKAGE_VERSION "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCHLEVEL}")
 set(PROJECT_BUGREPORT_PATH "http://sourceforge.net/projects/libvncserver")
+if(MSVC)
+set(CMAKE_C_FLAGS "-DWIN32 -Wall")
+else(MSVC)
 set(CMAKE_C_FLAGS "-O2 -W -Wall -g")
+endif(MSVC)
+
+
 set(LIBVNCSERVER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libvncserver)
 set(COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/common)
-set(LIBVNCCLIENT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libvncclient)
 set(LIBVNCSRVTEST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/examples)
 set(LIBVNCCLITEST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/client_examples)
-
+add_subdirectory(examples)
+# add_subdirectory(client_examples)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/libvncserver ${CMAKE_CURRENT_SOURCE_DIR}/common)
+
+set(ZLIB_ROOT "${CMAKE_SOURCE_DIR}/../zlib")
+set(ZLIB_LIBRARY "${CMAKE_SOURCE_DIR}/../libpng/projects/visualc71/x64/Release/zlib")
+set(PNG_PNG_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/../libpng")
+set(PNG_LIBRARY "${CMAKE_SOURCE_DIR}/../libpng/projects/visualc71/x64/Release/libpng")
 
 find_package(ZLIB)
 find_package(JPEG)
@@ -88,7 +99,16 @@ if(NOT HAVE_B64_IN_LIBC)
 endif(NOT HAVE_B64_IN_LIBC)
 
 if(Threads_FOUND)
-  option(TIGHTVNC_FILETRANSFER "Enable filetransfer" ON)
+if(MSVC)
+  # Currently do not support filetransfer on native MSVC
+  option(TIGHTVNC_FILETRANSFER "Enable filetransfer" OFF)
+  # Enable IPv6 by default
+  option(LIBVNCSERVER_IPv6 "Enable IPV6" ON)
+  set(LIBVNCSERVER_IPv6 1)
+else(MSVC)
+    option(TIGHTVNC_FILETRANSFER "Enable filetransfer" ON)
+endif(MSVC)
+
 endif(Threads_FOUND)
 if(ZLIB_FOUND)
   set(LIBVNCSERVER_HAVE_LIBZ 1)
@@ -134,6 +154,16 @@ check_include_file("sys/types.h"   LIBVNCSERVER_HAVE_SYS_TYPES_H)
 check_include_file("sys/wait.h"    LIBVNCSERVER_HAVE_SYS_WAIT_H)
 check_include_file("unistd.h"      LIBVNCSERVER_HAVE_UNISTD_H)
 
+if(MSVC)
+check_include_file("strings.h"     LIBVNCSERVER_HAVE_STRINGS_H)
+check_include_file("Ws2tcpip.h"    LIBVNCSERVER_HAVE_WS2TCPIP_H)
+
+  if(LIBVNCSERVER_HAVE_FCNTL_H)
+    add_definitions(-DLIBVNCSERVER_HAVE_FCNTL_H)
+  endif(LIBVNCSERVER_HAVE_FCNTL_H)
+
+endif(MSVC)
+
 # headers needed for check_type_size()
 check_include_file("arpa/inet.h"   HAVE_ARPA_INET_H)
 check_include_file("stdint.h"      HAVE_STDINT_H)
@@ -160,6 +190,7 @@ check_type_size(socklen_t LIBVNCSERVER_SOCKLEN_T)
 check_type_size(in_addr_t LIBVNCSERVER_IN_ADDR_T)
 if(NOT HAVE_LIBVNCSERVER_IN_ADDR_T)
   set(LIBVNCSERVER_NEED_INADDR_T 1)
+  add_definitions(-DLIBVNCSERVER_NEED_INADDR_T)
 endif(NOT HAVE_LIBVNCSERVER_IN_ADDR_T)
 
 # TODO:
@@ -229,6 +260,11 @@ if(ZLIB_FOUND)
     ${LIBVNCSERVER_DIR}/zrleoutstream.c
     ${LIBVNCSERVER_DIR}/zrlepalettehelper.c
   )
+  if(MSVC)
+        # according to Zlib's ReadMe, have to Define ZLIB_WINAPI for windows.
+    # zlib.h will include windows.h
+    ADD_DEFINITIONS(-DZLIB_WINAPI -DWIN32_LEAN_AND_MEAN)
+  endif(MSVC)
 endif(ZLIB_FOUND)
 
 if(JPEG_FOUND)
@@ -239,8 +275,8 @@ endif(JPEG_FOUND)
 
 if(PNG_FOUND)
   add_definitions(-DLIBVNCSERVER_HAVE_LIBPNG)
-  include_directories(${PNG_INCLUDE_DIR})
-  set(TIGHT_C ${LIBVNCSERVER_DIR}/tight.c ${COMMON_DIR}/turbojpeg.c)
+  include_directories(${PNG_PNG_INCLUDE_DIR})
+  # set(TIGHT_C ${LIBVNCSERVER_DIR}/tight.c ${COMMON_DIR}/turbojpeg.c)
 endif(PNG_FOUND)
 
 set(LIBVNCSERVER_SOURCES
@@ -258,6 +294,11 @@ if(TIGHTVNC_FILETRANSFER)
   )
 endif(TIGHTVNC_FILETRANSFER)
 
+if(MSVC)
+  option(LIBVNCSERVER_WITH_WEBSOCKETS "Build with websockets support (gnutls)" OFF)
+  set(LIBVNCSERVER_WITH_WEBSOCKETS 0)
+endif(MSVC)
+
 if(LIBVNCSERVER_WITH_WEBSOCKETS)
   add_definitions(-DLIBVNCSERVER_WITH_WEBSOCKETS)
   set(LIBVNCSERVER_SOURCES
@@ -268,104 +309,114 @@ if(LIBVNCSERVER_WITH_WEBSOCKETS)
 endif(LIBVNCSERVER_WITH_WEBSOCKETS)
 
 
-add_library(vncclient SHARED ${LIBVNCCLIENT_SOURCES})
-add_library(vncserver SHARED ${LIBVNCSERVER_SOURCES})
 if(WIN32)
   set(ADDITIONAL_LIBS ${ADDITIONAL_LIBS} ws2_32)
 endif(WIN32)
 
-target_link_libraries(vncclient
+
+add_library(libvncserver ${LIBVNCSERVER_SOURCES})
+# set_target_properties(libvncserver PROPERTIES DEFINE_SYMBOL DLLDEFINE)
+target_link_libraries(libvncserver
                       ${ADDITIONAL_LIBS}
                       ${ZLIB_LIBRARIES}
                       ${JPEG_LIBRARIES}
-                      ${GNUTLS_LIBRARIES}
+                      ${PNG_LIBRARIES}
+                      ${WEBSOCKET_LIBRARIES}
 )
-target_link_libraries(vncserver
-                      ${ADDITIONAL_LIBS}
-                      ${ZLIB_LIBRARIES}
-                      ${JPEG_LIBRARIES}
-		      ${PNG_LIBRARIES}
-		      ${WEBSOCKET_LIBRARIES}
+SET_TARGET_PROPERTIES(libvncserver
+PROPERTIES SOVERSION "0.0.0"
 )
 
-SET_TARGET_PROPERTIES(vncclient vncserver
-		PROPERTIES SOVERSION "${VERSION_SO}" VERSION "${PACKAGE_VERSION}"
-)
 
-# tests
-set(LIBVNCSERVER_TESTS
-    backchannel
-    camera
-    colourmaptest
-    example
-    fontsel
-    pnmshow
-    pnmshow24
-    regiontest
-    rotate
-    simple
-    simple15
-    storepasswd
-    vncev
-  )
+  install_targets(/lib libvncserver)
 
-if(Threads_FOUND)
-  set(LIBVNCSERVER_TESTS
-    ${LIBVNCSERVER_TESTS}
-    blooptest
-  )
-endif(Threads_FOUND)
-
-if(TIGHTVNC_FILETRANSFER)
-  set(LIBVNCSERVER_TESTS
-    ${LIBVNCSERVER_TESTS}
-    filetransfer
-  )
-endif(TIGHTVNC_FILETRANSFER)
-
-if(MACOS)
-  set(LIBVNCSERVER_TESTS
-    ${LIBVNCSERVER_TESTS}
-    mac
-  )
-endif(MACOS)
-
-set(LIBVNCCLIENT_TESTS
-    backchannel
-    ppmtest
-)
-
-if(SDL_FOUND)
-  include_directories(${SDL_INCLUDE_DIR})
-  set(LIBVNCCLIENT_TESTS
-    ${LIBVNCCLIENT_TESTS}
-    SDLvncviewer
-  )
-  set(SDLvncviewer_EXTRA_SOURCES scrap.c)
-endif(SDL_FOUND)
-
-if(HAVE_FFMPEG)
-  set(LIBVNCCLIENT_TESTS
-    ${LIBVNCCLIENT_TESTS}
-    vnc2mpg
-  )
-endif(HAVE_FFMPEG)
-
-
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/examples)
-foreach(test ${LIBVNCSERVER_TESTS})
-  add_executable(examples_${test} ${LIBVNCSRVTEST_DIR}/${test}.c)
-  target_link_libraries(examples_${test} vncserver ${CMAKE_THREAD_LIBS_INIT})
-endforeach(test ${LIBVNCSERVER_TESTS})
-
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/client_examples)
-foreach(test ${LIBVNCCLIENT_TESTS})
-  add_executable(client_examples_${test} ${LIBVNCCLITEST_DIR}/${test}.c ${LIBVNCCLITEST_DIR}/${${test}_EXTRA_SOURCES} )
-  target_link_libraries(client_examples_${test} vncclient ${CMAKE_THREAD_LIBS_INIT} ${X11_LIBRARIES} ${SDL_LIBRARY} ${FFMPEG_LIBRARIES})
-endforeach(test ${LIBVNCCLIENT_TESTS})
-
-install_targets(/lib vncserver)
-install_targets(/lib vncclient)
+# target_link_libraries(vncclient
+#                       ${ADDITIONAL_LIBS}
+#                       ${ZLIB_LIBRARIES}
+#                       ${JPEG_LIBRARIES}
+#                       ${GNUTLS_LIBRARIES}
+# )
+# target_link_libraries(vncserver
+#                       ${ADDITIONAL_LIBS}
+#                       ${ZLIB_LIBRARIES}
+#                       ${JPEG_LIBRARIES}
+# 		      ${PNG_LIBRARIES}
+# 		      ${WEBSOCKET_LIBRARIES}
+# )
+# # tests
+# set(LIBVNCSERVER_TESTS
+#     backchannel
+#     camera
+#     colourmaptest
+#     example
+#     fontsel
+#     pnmshow
+#     pnmshow24
+#     regiontest
+#     rotate
+#     simple
+#     simple15
+#     storepasswd
+#     vncev
+#   )
+# 
+# if(Threads_FOUND)
+#   set(LIBVNCSERVER_TESTS
+#     ${LIBVNCSERVER_TESTS}
+#     blooptest
+#   )
+# endif(Threads_FOUND)
+# 
+# if(TIGHTVNC_FILETRANSFER)
+#   set(LIBVNCSERVER_TESTS
+#     ${LIBVNCSERVER_TESTS}
+#     filetransfer
+#   )
+# endif(TIGHTVNC_FILETRANSFER)
+# 
+# if(MACOS)
+#   set(LIBVNCSERVER_TESTS
+#     ${LIBVNCSERVER_TESTS}
+#     mac
+#   )
+# endif(MACOS)
+# 
+# set(LIBVNCCLIENT_TESTS
+#     backchannel
+#     ppmtest
+# )
+# 
+# if(SDL_FOUND)
+#   include_directories(${SDL_INCLUDE_DIR})
+#   set(LIBVNCCLIENT_TESTS
+#     ${LIBVNCCLIENT_TESTS}
+#     SDLvncviewer
+#   )
+#   set(SDLvncviewer_EXTRA_SOURCES scrap.c)
+# endif(SDL_FOUND)
+# 
+# if(HAVE_FFMPEG)
+#   set(LIBVNCCLIENT_TESTS
+#     ${LIBVNCCLIENT_TESTS}
+#     vnc2mpg
+#   )
+# endif(HAVE_FFMPEG)
+# 
+# 
+# file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/examples)
+# foreach(test ${LIBVNCSERVER_TESTS})
+#   add_executable(examples_${test} ${LIBVNCSRVTEST_DIR}/${test}.c)
+#   target_link_libraries(examples_${test} vncserver ${CMAKE_THREAD_LIBS_INIT})
+# endforeach(test ${LIBVNCSERVER_TESTS})
+# 
+# file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/client_examples)
+# foreach(test ${LIBVNCCLIENT_TESTS})
+#   add_executable(client_examples_${test} ${LIBVNCCLITEST_DIR}/${test}.c ${LIBVNCCLITEST_DIR}/${${test}_EXTRA_SOURCES} )
+#   target_link_libraries(client_examples_${test} vncclient ${CMAKE_THREAD_LIBS_INIT} ${X11_LIBRARIES} ${SDL_LIBRARY} ${FFMPEG_LIBRARIES})
+# endforeach(test ${LIBVNCCLIENT_TESTS})
+# 
+# install_targets(/lib vncserver)
+# install_targets(/lib vncclient)
 install_files(/include/rfb FILES
     rfb/keysym.h
     rfb/rfb.h

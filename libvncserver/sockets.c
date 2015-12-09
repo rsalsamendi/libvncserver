@@ -328,8 +328,13 @@ rfbCheckFds(rfbScreenInfoPtr rfbScreen,long usec)
 
 	if (rfbScreen->listenSock != -1 && FD_ISSET(rfbScreen->listenSock, &fds)) {
 
-	    if (!rfbProcessNewConnection(rfbScreen))
+#ifdef WIN32
+            if (!rfbProcessNewConnection(rfbScreen, &fds))
                 return -1;
+#else // WIN32
+            if (!rfbProcessNewConnection(rfbScreen))
+                return -1;
+#endif // WIN32
 
 	    FD_CLR(rfbScreen->listenSock, &fds);
 	    if (--nfds == 0)
@@ -337,9 +342,13 @@ rfbCheckFds(rfbScreenInfoPtr rfbScreen,long usec)
 	}
 
 	if (rfbScreen->listen6Sock != -1 && FD_ISSET(rfbScreen->listen6Sock, &fds)) {
-
-	    if (!rfbProcessNewConnection(rfbScreen))
+#ifdef WIN32
+            if (!rfbProcessNewConnection(rfbScreen, &fds))
                 return -1;
+#else // WIN32
+            if (!rfbProcessNewConnection(rfbScreen))
+                return -1;
+#endif // WIN32
 
 	    FD_CLR(rfbScreen->listen6Sock, &fds);
 	    if (--nfds == 0)
@@ -408,6 +417,79 @@ rfbCheckFds(rfbScreenInfoPtr rfbScreen,long usec)
     } while(rfbScreen->handleEventsEagerly);
     return result;
 }
+
+#ifdef WIN32
+// For some reason the stock code calls select(), gets a connection request
+// and then calls select() again before accepting the connection. This
+// doesn't work on windows and probaby doesn't work on *nix.
+rfbBool
+rfbProcessNewConnection(rfbScreenInfoPtr rfbScreen,
+    fd_set *listen_fds)
+{
+    const int one = 1;
+    int sock = -1;
+#ifdef LIBVNCSERVER_IPv6
+    struct sockaddr_storage addr;
+#else
+    struct sockaddr_in addr;
+#endif
+    socklen_t addrlen = sizeof(addr);
+    int chosen_listen_sock = -1;
+
+    /* Do another select() call to find out which listen socket
+       has an incoming connection pending. We know that at least 
+       one of them has, so this should not block for too long! */
+    if (rfbScreen->listenSock >= 0 && FD_ISSET(rfbScreen->listenSock, listen_fds))
+      chosen_listen_sock = rfbScreen->listenSock;
+    if (rfbScreen->listen6Sock >= 0 && FD_ISSET(rfbScreen->listen6Sock, listen_fds))
+      chosen_listen_sock = rfbScreen->listen6Sock;
+
+    if ((sock = accept(chosen_listen_sock,
+		       (struct sockaddr *)&addr, &addrlen)) < 0) {
+      rfbLogPerror("rfbCheckFds: accept");
+      return FALSE;
+    }
+
+    if(!rfbSetNonBlocking(sock)) {
+      closesocket(sock);
+      return FALSE;
+    }
+
+    if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY,
+		   (char *)&one, sizeof(one)) < 0) {
+      rfbLogPerror("rfbCheckFds: setsockopt");
+      closesocket(sock);
+      return FALSE;
+    }
+
+#ifdef USE_LIBWRAP
+    if(!hosts_ctl("vnc",STRING_UNKNOWN,inet_ntoa(addr.sin_addr),
+		  STRING_UNKNOWN)) {
+      rfbLog("Rejected connection from client %s\n",
+	     inet_ntoa(addr.sin_addr));
+      closesocket(sock);
+      return FALSE;
+    }
+#endif
+
+#ifdef LIBVNCSERVER_IPv6
+    {
+        char host[1024];
+        if(getnameinfo((struct sockaddr*)&addr, addrlen, host, sizeof(host), NULL, 0, NI_NUMERICHOST) != 0) {
+            rfbLogPerror("rfbProcessNewConnection: error in getnameinfo");
+        }
+        rfbLog("Got connection from client %s\n", host);
+    }
+#else
+    rfbLog("Got connection from client %s\n", inet_ntoa(addr.sin_addr));
+#endif
+
+    rfbNewClient(rfbScreen,sock);
+
+    return TRUE;
+}
+
+#else // WIN32
 
 rfbBool
 rfbProcessNewConnection(rfbScreenInfoPtr rfbScreen)
@@ -484,6 +566,7 @@ rfbProcessNewConnection(rfbScreenInfoPtr rfbScreen)
 
     return TRUE;
 }
+#endif // WIN32
 
 
 void
