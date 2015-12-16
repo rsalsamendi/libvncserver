@@ -91,7 +91,7 @@
       <Optimization>Disabled</Optimization>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
-      <WarningLevel>EnableAllWarnings</WarningLevel>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <PreprocessorDefinitions>WIN32;_DEBUG;LIBVNCSERVER_HAVE_FCNTL_H;LIBVNCSERVER_NEED_INADDR_T;LIBVNCSERVER_HAVE_LIBZ;ZLIB_WINAPI;WIN32_LEAN_AND_MEAN;LIBVNCSERVER_HAVE_LIBPNG;CMAKE_INTDIR="Debug";DLLDEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)</ObjectFileName>
     </ClCompile>
@@ -127,7 +127,7 @@
       <Optimization>MaxSpeed</Optimization>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <WarningLevel>EnableAllWarnings</WarningLevel>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <PreprocessorDefinitions>WIN32;NDEBUG;LIBVNCSERVER_HAVE_FCNTL_H;LIBVNCSERVER_NEED_INADDR_T;LIBVNCSERVER_HAVE_LIBZ;ZLIB_WINAPI;WIN32_LEAN_AND_MEAN;LIBVNCSERVER_HAVE_LIBPNG;CMAKE_INTDIR="Release";DLLDEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <DebugInformationFormat>
